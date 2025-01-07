@@ -7,7 +7,6 @@ import hashlib
 
 http_methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "ANY"]
 
-session = boto3.Session(profile_name="deploy-dev")
 
 class builder:
 
@@ -55,7 +54,15 @@ class builder:
                 "Config must have a non empty string parameter named deployer"
             )
         self.config["deployer"] = config["deployer"]
-        self.config["profile"] = f"deploy-{self.config["deployer"]}"
+
+        # Checking the profile parameter
+        if (
+            not config.get("profile")
+            or not isinstance(config["profile"], str)
+            or not config["profile"].strip()
+        ):
+            raise ValueError("Config must be a non empty string parameter profile")
+        self.config["profile"] = config["profile"]
 
         # Checking the region parameter
         if (
@@ -83,6 +90,18 @@ class builder:
         ):
             raise ValueError("Config must be a non empty string parameter stage")
         self.config["stage"] = config["stage"]
+
+        # Checking the stack parameter
+        if (
+            not config.get("stack")
+            or not isinstance(config["stack"], str)
+            or not config["stack"].strip()
+        ):
+            raise ValueError("Config must be a non empty string parameter stack")
+        self.config["stack"] = config["stack"]
+        self.config["stack_hash"] = self._get_hash(
+            f"{self.config["deployer"]}/{self.config["stack"]}"
+        )
 
         # Storing timestamp
         self.config["timestamp"] = int(time.time())
@@ -146,12 +165,6 @@ class builder:
         # Make the API template
         print("Making the API template")
         self._make_api_template()
-
-    def deploy(self):
-
-        # Uploading the files to S3
-        print("Uploading the files to S3")
-        self._upload_files()
 
     def _get_filetree(self):
 
@@ -222,7 +235,7 @@ class builder:
                     }
                     self.building["methods"][f"{path}/{token}"][
                         "zip"
-                    ] = f"{self.building['methods'][f"{path}/{token}"]['hash']}-{self.config["timestamp"]}.zip"
+                    ] = f"{self.config["timestamp"]}-{self.building['methods'][f"{path}/{token}"]['hash']}.zip"
                 else:
                     get_methods(d[token], f"{path}/{token}")
 
@@ -309,23 +322,7 @@ class builder:
         # Zip the files for each method
         for method in self.building["methods"]:
             os.system(
-                f"cd {self.building['methods'][method]["path_temporal"]} && zip -r {self.building['methods'][method]['zip']} *"
-            )
-
-    def _upload_files(self):
-
-        # Create the S3 client
-        s3_client = session.client("s3", region_name=self.config["region"])
-
-        # For each method, upload the zip file to S3
-        for method in self.building["methods"]:
-            s3_client.upload_file(
-                os.path.join(
-                    self.building["methods"][method]["path_temporal"],
-                    self.building["methods"][method]["zip"],
-                ),
-                self.config["bucket"],
-                self.building["methods"][method]["zip"],
+                f"cd {self.building['methods'][method]["path_temporal"]} && zip -r {self.building['methods'][method]['zip']} * >/dev/null 2>&1"
             )
 
     def _make_methods_template(self):
@@ -437,7 +434,7 @@ class builder:
 
             # Create the template file
             with open(
-                f"{method["path_temporal"]}/{method["hash"]}-{self.config["timestamp"]}.json",
+                f"{method["path_temporal"]}/{self.config["timestamp"]}-{method["hash"]}.json",
                 "w",
             ) as f:
                 f.write(json.dumps(method["template"], indent=4, sort_keys=True))
@@ -451,32 +448,32 @@ class builder:
 
         template = {
             "AWSTemplateFormatVersion": "2010-09-09",
-            "resources": {
+            "Resources": {
                 "apiGateway": {
-                    "type": "AWS::ApiGateway::RestApi",
-                    "properties": {
+                    "Type": "AWS::ApiGateway::RestApi",
+                    "Properties": {
                         "Name": self.config["name"],
-                    },
-                    "parameters": {
-                        "endpointConfigurationTypes": {
-                            "type": "String",
-                            "default": "REGIONAL",
+                        "Parameters": {
+                            "endpointConfigurationTypes": {
+                                "Type": "String",
+                                "default": "REGIONAL",
+                            },
                         },
                     },
                 },
-                f"apiGatewayDeployment_{self.config["timestamp"]}": {
-                    "type": "AWS::ApiGateway::Deployment",
-                    "properties": {
+                f"apiGatewayDeployment{self.config["timestamp"]}": {
+                    "Type": "AWS::ApiGateway::Deployment",
+                    "Properties": {
                         "RestApiId": {"Ref": "apiGateway"},
                     },
-                    "dependsOn": dependence,
+                    "DependsOn": dependence,
                 },
                 "apiGatewayStage": {
-                    "type": "AWS::ApiGateway::Stage",
-                    "properties": {
+                    "Type": "AWS::ApiGateway::Stage",
+                    "Properties": {
                         "RestApiId": {"Ref": "apiGateway"},
                         "DeploymentId": {
-                            "Ref": f"apiGatewayDeployment_{self.config["timestamp"]}"
+                            "Ref": f"apiGatewayDeployment{self.config["timestamp"]}"
                         },
                         "tracingEnabled": True,
                         "methodSettings": [
@@ -489,21 +486,21 @@ class builder:
                         ],
                         "StageName": self.config["stage"],
                     },
-                    "dependsOn": [f"apiGatewayDeployment_{self.config["timestamp"]}"],
+                    "DependsOn": [f"apiGatewayDeployment{self.config["timestamp"]}"],
                 },
             },
-            "outputs": {
+            "Outputs": {
                 "apiId": {
-                    "value": {"Ref": "apiGateway"},
+                    "Value": {"Ref": "apiGateway"},
                 },
             },
         }
 
         for method in self.building["methods"]:
-            template["resources"][self.building["methods"][method]["hash"]] = {
-                "type": "AWS::CloudFormation::Stack",
-                "properties": {
-                    "TemplateURL": f"{self.building['methods'][method]['path_temporal']}/{self.building['methods'][method]['hash']}-{self.config["timestamp"]}.json",
+            template["Resources"][self.building["methods"][method]["hash"]] = {
+                "Type": "AWS::CloudFormation::Stack",
+                "Properties": {
+                    "TemplateURL": f"{self.building['methods'][method]['path_temporal']}/{self.config["timestamp"]}-{self.building['methods'][method]['hash']}.json",
                     "Parameters": {
                         "parGateway": {"Ref": "apiGateway"},
                         "parResourceid": {"Fn::GetAtt": "apiGateway.RootResourceId"},
@@ -513,6 +510,66 @@ class builder:
 
         # Create the template file
         with open(
-            f"{self.config["path_temporal"]}/{self.config["timestamp"]}.json", "w"
+            f"{self.config["path_temporal"]}/{self.config["timestamp"]}-{self.config["stack_hash"]}.json",
+            "w",
         ) as f:
             f.write(json.dumps(template, indent=4, sort_keys=True))
+
+    def deploy(self):
+
+        # Create the aws session
+        self.aws = boto3.Session(profile_name=self.config["profile"])
+
+        # Uploading the files to S3
+        print("Uploading the files to S3")
+        self._upload_files()
+
+        # Deploying clouformation
+        print("Deploying clouformation")
+        self._deploy_cloudformation()
+
+        # Delete the pointer to the aws session - No need to close it
+        del self.aws
+
+    def _upload_files(self):
+
+        # Create the S3 client
+        s3_client = self.aws.client("s3", region_name=self.config["region"])
+
+        # For each method, upload the zip file to S3
+        for method in self.building["methods"]:
+            s3_client.upload_file(
+                os.path.join(
+                    self.building["methods"][method]["path_temporal"],
+                    self.building["methods"][method]["zip"],
+                ),
+                self.config["bucket"],
+                self.building["methods"][method]["zip"],
+            )
+
+        # Upload the API template to S3
+        s3_client.upload_file(
+            f"{self.config["path_temporal"]}/{self.config["timestamp"]}-{self.config["stack_hash"]}.json",
+            self.config["bucket"],
+            f"{self.config["timestamp"]}-{self.config["stack_hash"]}.json",
+        )
+
+        # Close the S3 client
+        s3_client.close()
+
+    def _deploy_cloudformation(self):
+
+        # Create the CloudFormation client
+        cloudformation_client = self.aws.client(
+            "cloudformation", region_name=self.config["region"]
+        )
+
+        # Create the stack
+        cloudformation_client.create_stack(
+            StackName=self.config["stack"],
+            TemplateURL=f"https://{self.config["bucket"]}.s3.amazonaws.com/{self.config["timestamp"]}-{self.config["stack_hash"]}.json",
+            Capabilities=["CAPABILITY_NAMED_IAM"],
+        )
+
+        # Close the CloudFormation client
+        cloudformation_client.close()
