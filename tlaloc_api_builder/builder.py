@@ -236,6 +236,9 @@ class builder:
                     self.building["methods"][f"{path}/{token}"][
                         "zip"
                     ] = f"{self.config["timestamp"]}-{self.building['methods'][f"{path}/{token}"]['hash']}.zip"
+                    self.building["methods"][f"{path}/{token}"][
+                        "json"
+                    ] = f"{self.config["timestamp"]}-{self.building['methods'][f"{path}/{token}"]['hash']}.json"
                 else:
                     get_methods(d[token], f"{path}/{token}")
 
