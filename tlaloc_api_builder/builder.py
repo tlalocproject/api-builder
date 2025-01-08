@@ -354,7 +354,7 @@ class builder:
                                 "Type": "AWS_PROXY",
                                 "IntegrationHttpMethod": "POST",
                                 "Uri": {
-                                    "Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${<<id>>function.Arn}/invocations"
+                                    "Fn::Sub": f"arn:aws:apigateway:${{AWS::Region}}:lambda:path/2015-03-31/functions/${{{method["hash"]}Function.Arn}}/invocations"
                                 },
                             },
                         },
