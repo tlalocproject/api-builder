@@ -456,12 +456,7 @@ class builder:
                     "Type": "AWS::ApiGateway::RestApi",
                     "Properties": {
                         "Name": self.config["name"],
-                        "Parameters": {
-                            "endpointConfigurationTypes": {
-                                "Type": "String",
-                                "default": "REGIONAL",
-                            },
-                        },
+                        "Parameters": {"EndpointConfiguration": "REGIONAL"},
                     },
                 },
                 f"apiGatewayDeployment{self.config["timestamp"]}": {
