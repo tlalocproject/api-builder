@@ -500,7 +500,7 @@ class builder:
             template["Resources"][self.building["methods"][method]["hash"]] = {
                 "Type": "AWS::CloudFormation::Stack",
                 "Properties": {
-                    "TemplateURL": f"{self.building['methods'][method]['path_temporal']}/{self.config["timestamp"]}-{self.building['methods'][method]['hash']}.json",
+                    "TemplateURL": f"https://{self.config["bucket"]}.s3.amazonaws.com/{self.building['methods'][method]['json']}",
                     "Parameters": {
                         "parGateway": {"Ref": "apiGateway"},
                         "parResourceid": {"Fn::GetAtt": "apiGateway.RootResourceId"},
