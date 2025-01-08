@@ -410,7 +410,7 @@ class builder:
                         "Type": "AWS::Lambda::Function",
                         "Properties": {
                             "FunctionName": method["hash"],
-                            "Handler": {"Fn::Sub": f"{method["method"]}.handler"},
+                            "Handler": "index.handler",
                             "Role": {"Fn::GetAtt": f"{method["hash"]}Role.Arn"},
                             "Runtime": "nodejs20.x",
                             "Timeout": 10,
