@@ -340,7 +340,7 @@ class builder:
                     "parResourceid": {"Type": "String"},
                 },
                 "Resources": {
-                    f"{method["hash"]}_method": {
+                    f"{method["hash"]}Method": {
                         "Type": "AWS::ApiGateway::Method",
                         "Properties": {
                             "AuthorizationType": "NONE",
@@ -356,7 +356,7 @@ class builder:
                             },
                         },
                     },
-                    f"{method["hash"]}_role": {
+                    f"{method["hash"]}Role": {
                         "Type": "AWS::IAM::Role",
                         "Properties": {
                             "AssumeRolePolicyDocument": {
@@ -403,12 +403,12 @@ class builder:
                             ],
                         },
                     },
-                    f"{method["hash"]}_function": {
+                    f"{method["hash"]}Function": {
                         "Type": "AWS::Lambda::Function",
                         "Properties": {
                             "FunctionName": method["hash"],
                             "Handler": {"Fn::Sub": f"{method["method"]}.handler"},
-                            "Role": {"Fn::GetAtt": f"{method["hash"]}_role.Arn"},
+                            "Role": {"Fn::GetAtt": f"{method["hash"]}Role.Arn"},
                             "Runtime": "nodejs20.x",
                             "Timeout": 10,
                             "MemorySize": 256,
@@ -419,12 +419,12 @@ class builder:
                             },
                         },
                     },
-                    f"{method["hash"]}_invoke": {
+                    f"{method["hash"]}Invoke": {
                         "Type": "AWS::Lambda::Permission",
                         "Properties": {
                             "Action": "lambda:InvokeFunction",
                             "FunctionName": {
-                                "Fn::GetAtt": f"{method["hash"]}_function.Arn"
+                                "Fn::GetAtt": f"{method["hash"]}Function.Arn"
                             },
                             "Principal": "apigateway.amazonaws.com",
                         },
