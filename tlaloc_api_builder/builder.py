@@ -546,6 +546,14 @@ class builder:
                 self.config["bucket"],
                 self.building["methods"][method]["zip"],
             )
+            s3_client.upload_file(
+                os.path.join(
+                    self.building["methods"][method]["path_temporal"],
+                    self.building["methods"][method]["json"],
+                ),
+                self.config["bucket"],
+                self.building["methods"][method]["json"],
+            )
 
         # Upload the API template to S3
         s3_client.upload_file(
