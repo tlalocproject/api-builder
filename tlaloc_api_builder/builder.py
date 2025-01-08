@@ -475,8 +475,8 @@ class builder:
                         "DeploymentId": {
                             "Ref": f"apiGatewayDeployment{self.config["timestamp"]}"
                         },
-                        "tracingEnabled": True,
-                        "methodSettings": [
+                        "TracingEnabled": True,
+                        "MethodSettings": [
                             {
                                 "DataTraceEnabled": True,
                                 "HttpMethod": "*",
