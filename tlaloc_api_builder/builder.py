@@ -5,7 +5,51 @@ import time
 import boto3
 import hashlib
 
+from botocore.exceptions import ClientError
+
 http_methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "ANY"]
+
+in_progress_statuses = [
+    "CREATE_IN_PROGRESS",
+    "ROLLBACK_IN_PROGRESS",
+    "DELETE_IN_PROGRESS",
+    "UPDATE_IN_PROGRESS",
+    "UPDATE_ROLLBACK_IN_PROGRESS",
+    "REVIEW_IN_PROGRESS",
+    "IMPORT_IN_PROGRESS",
+    "IMPORT_ROLLBACK_IN_PROGRESS",
+]
+
+# Successful statuses
+successful_statuses = [
+    "CREATE_COMPLETE",
+    "DELETE_COMPLETE",
+    "UPDATE_COMPLETE",
+    "UPDATE_ROLLBACK_COMPLETE",
+    "IMPORT_COMPLETE",
+    "IMPORT_ROLLBACK_COMPLETE",
+]
+
+# Failed statuses
+failed_statuses = [
+    "CREATE_FAILED",
+    "ROLLBACK_FAILED",
+    "DELETE_FAILED",
+    "UPDATE_FAILED",
+    "UPDATE_ROLLBACK_FAILED",
+    "IMPORT_FAILED",
+    "IMPORT_ROLLBACK_FAILED",
+]
+
+# Rollback statuses
+rollback_statuses = [
+    "ROLLBACK_COMPLETE",
+    "UPDATE_ROLLBACK_COMPLETE",
+    "IMPORT_ROLLBACK_COMPLETE",
+]
+
+# Special cases
+special_cases = ["DELETE_IN_PROGRESS", "DELETE_COMPLETE", "DELETE_FAILED"]
 
 
 class builder:
@@ -15,6 +59,7 @@ class builder:
         # Initialize the config dictionary
         self.config = {}
 
+        # Checking common config parameters #######################################
         # Checking if the config is a dictionary
         if not isinstance(config, dict):
             raise ValueError("Config must be a dictionary")
@@ -29,10 +74,13 @@ class builder:
             raise ValueError(
                 "Config must be a non empty string that corresponds to an existing path"
             )
+        if "API" not in os.listdir(config["path"]):
+            raise ValueError('The path must contain a folder named "API"')
         self.config["path"] = config["path"]
+        self.config["path_sources"] = os.path.join(self.config["path"], "API")
         self.config["path_temporal"] = os.path.join(
             os.path.dirname(self.config["path"]),
-            "." + os.path.basename(self.config["path"]),
+            "." + os.path.basename(self.config["path_sources"]),
         )
 
         # Checking the config.name parameter
@@ -55,56 +103,83 @@ class builder:
             )
         self.config["deployer"] = config["deployer"]
 
-        # Checking the profile parameter
+        # Checking the provider parameter
         if (
-            not config.get("profile")
-            or not isinstance(config["profile"], str)
-            or not config["profile"].strip()
+            not config.get("provider")
+            or not isinstance(config["provider"], str)
+            or not config["provider"].strip()
         ):
-            raise ValueError("Config must be a non empty string parameter profile")
-        self.config["profile"] = config["profile"]
-
-        # Checking the region parameter
-        if (
-            not config.get("region")
-            or not isinstance(config["region"], str)
-            or not config["region"].strip()
-        ):
-            raise ValueError("Config must be a non empty string parameter region")
-        self.config["region"] = config["region"]
-
-        # Checking the bucket parameter
-        if (
-            not config.get("bucket")
-            or not isinstance(config["bucket"], str)
-            or not config["bucket"].strip()
-        ):
-            raise ValueError("Config must be a non empty string parameter bucket")
-        self.config["bucket"] = config["bucket"]
-
-        # Checking the stage parameter
-        if (
-            not config.get("stage")
-            or not isinstance(config["stage"], str)
-            or not config["stage"].strip()
-        ):
-            raise ValueError("Config must be a non empty string parameter stage")
-        self.config["stage"] = config["stage"]
-
-        # Checking the stack parameter
-        if (
-            not config.get("stack")
-            or not isinstance(config["stack"], str)
-            or not config["stack"].strip()
-        ):
-            raise ValueError("Config must be a non empty string parameter stack")
-        self.config["stack"] = config["stack"]
-        self.config["stack_hash"] = self._get_hash(
-            f"{self.config["deployer"]}/{self.config["stack"]}"
-        )
+            raise ValueError(
+                "Config must have a non empty string parameter named provider"
+            )
+        self.config["provider"] = config["provider"]
 
         # Storing timestamp
         self.config["timestamp"] = int(time.time())
+
+        # Checking the AWS deployment parameters ##################################
+        if self.config["provider"] == "aws":
+
+            # Checking the aws_profile parameter
+            if (
+                not config.get("aws_profile")
+                or not isinstance(config["aws_profile"], str)
+                or not config["aws_profile"].strip()
+            ):
+                raise ValueError(
+                    "Config must be a non empty string parameter aws_profile"
+                )
+            self.config["aws_profile"] = config["aws_profile"]
+
+            # Checking the aws_region parameter
+            if (
+                not config.get("aws_region")
+                or not isinstance(config["aws_region"], str)
+                or not config["aws_region"].strip()
+            ):
+                raise ValueError(
+                    "Config must be a non empty string parameter aws_region"
+                )
+            self.config["aws_region"] = config["aws_region"]
+
+            # Checking the aws_bucket parameter
+            if (
+                not config.get("aws_bucket")
+                or not isinstance(config["aws_bucket"], str)
+                or not config["aws_bucket"].strip()
+            ):
+                raise ValueError(
+                    "Config must be a non empty string parameter aws_bucket"
+                )
+            self.config["aws_bucket"] = config["aws_bucket"]
+
+            # Checking the aws_stage parameter
+            if (
+                not config.get("aws_stage")
+                or not isinstance(config["aws_stage"], str)
+                or not config["aws_stage"].strip()
+            ):
+                raise ValueError(
+                    "Config must be a non empty string parameter aws_stage"
+                )
+            self.config["aws_stage"] = config["aws_stage"]
+
+            # Checking the aws_stack parameter
+            if (
+                not config.get("aws_stack")
+                or not isinstance(config["aws_stack"], str)
+                or not config["aws_stack"].strip()
+            ):
+                raise ValueError(
+                    "Config must be a non empty string parameter aws_stack"
+                )
+            self.config["aws_stack"] = config["aws_stack"]
+            self.config["aws_stack_hash"] = self._get_hash(
+                f"{self.config["deployer"]}/{self.config["aws_stack"]}"
+            )
+
+        else:
+            raise ValueError("Invalid provider")
 
     def build(self):
 
@@ -172,11 +247,13 @@ class builder:
         filetree = {}
 
         # Walk through the directory and build the filetree
-        for root, dirs, files in os.walk(self.config["path"]):
+        for root, dirs, files in os.walk(self.config["path_sources"]):
 
             # Create a nested dictionary for each directory
             directory = filetree
-            for part in os.path.relpath(root, self.config["path"]).split(os.sep):
+            for part in os.path.relpath(root, self.config["path_sources"]).split(
+                os.sep
+            ):
                 if part != ".":
                     directory = directory.setdefault(part, {})
 
@@ -220,29 +297,32 @@ class builder:
         # Initialize the methods dictionary
         self.building["methods"] = {}
 
-        # Get the methods from the structure
+        # Function to get the methods
         def get_methods(d, path):
             for token in d:
+                path_sources = os.path.join(path, token)
                 if token in http_methods:
-                    self.building["methods"][f"{path}/{token}"] = {
-                        "path_temporal": f"{path}/{token}".replace(
-                            self.config["path"], self.config["path_temporal"], 1
-                        ),
-                        "hash": self._get_hash(
-                            f"{self.config["deployer"]}/{path}/{token}"
-                        ),
+                    method_hash = self._get_hash(
+                        f"{self.config["deployer"]}-{path}/{token}"
+                    )
+                    last_change = int(os.path.getmtime(path_sources))
+                    self.building["methods"][method_hash] = {
+                        "hash": method_hash,
                         "method": token,
+                        "zip": f"{last_change}-{method_hash}.zip",
+                        "json": f"{last_change}-{method_hash}.json",
+                        "path_sources": path_sources,
+                        "resource": "/".join(path_sources.split("/")[2:-1]),
+                        "path_temporal": os.path.join(
+                            self.config["path_temporal"], method_hash
+                        ),
                     }
-                    self.building["methods"][f"{path}/{token}"][
-                        "zip"
-                    ] = f"{self.config["timestamp"]}-{self.building['methods'][f"{path}/{token}"]['hash']}.zip"
-                    self.building["methods"][f"{path}/{token}"][
-                        "json"
-                    ] = f"{self.config["timestamp"]}-{self.building['methods'][f"{path}/{token}"]['hash']}.json"
-                else:
-                    get_methods(d[token], f"{path}/{token}")
 
-        get_methods(self.building["structure"], self.config["path"])
+                else:
+                    get_methods(d[token], path_sources)
+
+        # Get the methods from the structure
+        get_methods(self.building["structure"], self.config["path_sources"])
 
     def _get_hash(self, string):
 
@@ -269,7 +349,7 @@ class builder:
         # Copy the files to the temporal directories for each method
         for method in self.building["methods"]:
             os.system(
-                f"cp -r {method}/* {self.building['methods'][method]['path_temporal']}"
+                f"cp -r {self.building["methods"][method]["path_sources"]}/* {self.building['methods'][method]['path_temporal']}"
             )
 
     def _prepare_temporal_files(self):
@@ -354,7 +434,7 @@ class builder:
                                 "Type": "AWS_PROXY",
                                 "IntegrationHttpMethod": "POST",
                                 "Uri": {
-                                    "Fn::Sub": f"arn:aws:apigateway:${{AWS::Region}}:lambda:path/2015-03-31/functions/${{{method["hash"]}Function.Arn}}/invocations"
+                                    "Fn::Sub": f"arn:aws:apigateway:${{AWS::Region}}:lambda:path/2015-03-31/functions/${{{method["hash"]}Function.Arn}}/invocations",
                                 },
                             },
                         },
@@ -417,7 +497,7 @@ class builder:
                             "MemorySize": 256,
                             "TracingConfig": {"Mode": "Active"},
                             "Code": {
-                                "S3Bucket": self.config["bucket"],
+                                "S3Bucket": self.config["aws_bucket"],
                                 "S3Key": method["zip"],
                             },
                         },
@@ -437,7 +517,7 @@ class builder:
 
             # Create the template file
             with open(
-                f"{method["path_temporal"]}/{self.config["timestamp"]}-{method["hash"]}.json",
+                f"{method["path_temporal"]}/{method["json"]}",
                 "w",
             ) as f:
                 f.write(json.dumps(method["template"], indent=4, sort_keys=True))
@@ -447,7 +527,7 @@ class builder:
         # Initialize the depends list
         dependence = ["apiGateway"]
         for method in self.building["methods"]:
-            dependence.append(f"{self.building['methods'][method]['hash']}")
+            dependence.append(f"{self.building['methods'][method]['hash']}Stack")
 
         template = {
             "AWSTemplateFormatVersion": "2010-09-09",
@@ -482,7 +562,7 @@ class builder:
                                 "ResourcePath": "/*",
                             }
                         ],
-                        "StageName": self.config["stage"],
+                        "StageName": self.config["aws_stage"],
                     },
                     "DependsOn": [f"apiGatewayDeployment{self.config["timestamp"]}"],
                 },
@@ -494,35 +574,147 @@ class builder:
             },
         }
 
+        # Calculating the API resources
+        resources_methods = {}
         for method in self.building["methods"]:
-            template["Resources"][self.building["methods"][method]["hash"]] = {
+            # Adding the method to the resources list and adding the parent resource
+            if self.building["methods"][method]["resource"] not in resources_methods:
+                resources_methods[self.building["methods"][method]["resource"]] = []
+            resources_methods[self.building["methods"][method]["resource"]].append(
+                self.building["methods"][method]["method"]
+            )
+
+        # Calculating all required resources paths
+        resources_all = []
+        for resource in resources_methods:
+            while len(resource) > 0:
+                if resource not in resources_all:
+                    resources_all.append(resource)
+                resource = "/".join(resource.split("/")[:-1])
+
+        # Creating all required resources paths
+        for resource in resources_all:
+
+            # Calculating the resource hash
+            resource_hash = self._get_hash(resource)
+
+            # Calculating the parent resource
+            resource_parent = {"Fn::GetAtt": "apiGateway.RootResourceId"}
+            if len(resource.split("/")) > 1:
+                resource_parent = {
+                    "Ref": f"{self._get_hash('/'.join(resource.split('/')[:-1]))}Resource"
+                }
+
+            # Adding the parent resource to the template
+            template["Resources"][f"{resource_hash}Resource"] = {
+                "Type": "AWS::ApiGateway::Resource",
+                "Properties": {
+                    "ParentId": resource_parent,
+                    "PathPart": resource.split("/")[-1],
+                    "RestApiId": {"Ref": "apiGateway"},
+                },
+            }
+
+        # Creating the OPTION method for CORS
+        for resource in resources_methods:
+
+            # Checking to avoid overwritting options
+            if "OPTIONS" in resources_methods[resource]:
+                continue
+
+            # Calculating the resource hash
+            resource_hash = self._get_hash(resource)
+            resource_id = resource_parent = {"Fn::GetAtt": "apiGateway.RootResourceId"}
+            if len(resource) > 0:
+                resource_id = {"Ref": f"{resource_hash}Resource"}
+
+            # Adding the CORS method to the parent resource
+            template["Resources"][f"{resource_hash}ResourceOPTIONS"] = {
+                "Type": "AWS::ApiGateway::Method",
+                "Properties": {
+                    "AuthorizationType": "NONE",
+                    "RestApiId": {"Ref": "apiGateway"},
+                    "ResourceId": resource_id,
+                    "HttpMethod": "OPTIONS",
+                    "Integration": {
+                        "Type": "MOCK",
+                        "PassthroughBehavior": "WHEN_NO_MATCH",
+                        "RequestTemplates": {"application/json": '{"statusCode": 200}'},
+                        "IntegrationResponses": [
+                            {
+                                "StatusCode": 200,
+                                "ResponseParameters": {
+                                    "method.response.header.Access-Control-Allow-Headers": "'*'",
+                                    "method.response.header.Access-Control-Allow-Methods": "'GET,OPTIONS'",
+                                    "method.response.header.Access-Control-Allow-Origin": "'*'",
+                                },
+                            }
+                        ],
+                    },
+                    "MethodResponses": [
+                        {
+                            "StatusCode": 200,
+                            "ResponseModels": {"application/json": "Empty"},
+                            "ResponseParameters": {
+                                "method.response.header.Access-Control-Allow-Headers": False,
+                                "method.response.header.Access-Control-Allow-Methods": False,
+                                "method.response.header.Access-Control-Allow-Origin": False,
+                            },
+                        }
+                    ],
+                },
+            }
+
+        # Creating the methods
+        for method in self.building["methods"]:
+
+            resource = self.building["methods"][method]["resource"]
+
+            # Calculating the parent resource
+            resource_parent = {"Fn::GetAtt": "apiGateway.RootResourceId"}
+            if len(resource) > 0:
+                resource_parent = {"Ref": f"{self._get_hash(resource)}Resource"}
+
+            template["Resources"][
+                f"{self.building['methods'][method]['hash']}Stack"
+            ] = {
                 "Type": "AWS::CloudFormation::Stack",
                 "Properties": {
-                    "TemplateURL": f"https://{self.config["bucket"]}.s3.amazonaws.com/{self.building['methods'][method]['json']}",
+                    "TemplateURL": f"https://{self.config["aws_bucket"]}.s3.amazonaws.com/{self.building['methods'][method]['json']}",
                     "Parameters": {
                         "parGateway": {"Ref": "apiGateway"},
-                        "parResourceid": {"Fn::GetAtt": "apiGateway.RootResourceId"},
+                        "parResourceid": resource_parent,
                     },
                 },
             }
 
         # Create the template file
         with open(
-            f"{self.config["path_temporal"]}/{self.config["timestamp"]}-{self.config["stack_hash"]}.json",
+            f"{self.config["path_temporal"]}/{self.config["timestamp"]}-{self.config["aws_stack_hash"]}.json",
             "w",
         ) as f:
             f.write(json.dumps(template, indent=4, sort_keys=True))
 
     def deploy(self):
 
+        if self.config["provider"] == "aws":
+
+            self._deploy_aws()
+
+        else:
+
+            raise ValueError("Invalid provider")
+
+    def _deploy_aws(self):
+
         # Create the aws session
-        self.aws = boto3.Session(profile_name=self.config["profile"])
+        self.aws = boto3.Session(profile_name=self.config["aws_profile"])
 
         # Uploading the files to S3
         print("Uploading the files to S3")
         self._upload_files()
 
-        # Deploying clouformation
+        # # Deploying clouformation
         print("Deploying clouformation")
         self._deploy_cloudformation()
 
@@ -532,7 +724,7 @@ class builder:
     def _upload_files(self):
 
         # Create the S3 client
-        s3_client = self.aws.client("s3", region_name=self.config["region"])
+        s3_client = self.aws.client("s3", region_name=self.config["aws_region"])
 
         # For each method, upload the zip file to S3
         for method in self.building["methods"]:
@@ -541,7 +733,7 @@ class builder:
                     self.building["methods"][method]["path_temporal"],
                     self.building["methods"][method]["zip"],
                 ),
-                self.config["bucket"],
+                self.config["aws_bucket"],
                 self.building["methods"][method]["zip"],
             )
             s3_client.upload_file(
@@ -549,15 +741,15 @@ class builder:
                     self.building["methods"][method]["path_temporal"],
                     self.building["methods"][method]["json"],
                 ),
-                self.config["bucket"],
+                self.config["aws_bucket"],
                 self.building["methods"][method]["json"],
             )
 
         # Upload the API template to S3
         s3_client.upload_file(
-            f"{self.config["path_temporal"]}/{self.config["timestamp"]}-{self.config["stack_hash"]}.json",
-            self.config["bucket"],
-            f"{self.config["timestamp"]}-{self.config["stack_hash"]}.json",
+            f"{self.config["path_temporal"]}/{self.config["timestamp"]}-{self.config["aws_stack_hash"]}.json",
+            self.config["aws_bucket"],
+            f"{self.config["timestamp"]}-{self.config["aws_stack_hash"]}.json",
         )
 
         # Close the S3 client
@@ -566,16 +758,61 @@ class builder:
     def _deploy_cloudformation(self):
 
         # Create the CloudFormation client
-        cloudformation_client = self.aws.client(
-            "cloudformation", region_name=self.config["region"]
+        self.cloudfront_client = self.aws.client(
+            "cloudformation", region_name=self.config["aws_region"]
         )
 
-        # Create the stack
-        cloudformation_client.create_stack(
-            StackName=self.config["stack"],
-            TemplateURL=f"https://{self.config["bucket"]}.s3.amazonaws.com/{self.config["timestamp"]}-{self.config["stack_hash"]}.json",
-            Capabilities=["CAPABILITY_NAMED_IAM"],
-        )
+        # Check the aws_stack status
+        aws_stack_status = self._check_aws_stack(self.config["aws_stack"])
+        print(f"Stack status: {aws_stack_status}")
+
+        # Handle the aws_stack
+        if aws_stack_status == "DOES_NOT_EXIST":
+            print("Creating aws_stack")
+            self.cloudfront_client.create_stack(
+                StackName=self.config["aws_stack"],
+                TemplateURL=f"https://{self.config["aws_bucket"]}.s3.amazonaws.com/{self.config["timestamp"]}-{self.config["aws_stack_hash"]}.json",
+                Capabilities=["CAPABILITY_NAMED_IAM"],
+            )
+        elif aws_stack_status in successful_statuses:
+            try:
+                print("Updating aws_stack")
+                self.cloudfront_client.update_stack(
+                    StackName=self.config["aws_stack"],
+                    TemplateURL=f"https://{self.config["aws_bucket"]}.s3.amazonaws.com/{self.config["timestamp"]}-{self.config["aws_stack_hash"]}.json",
+                    Capabilities=["CAPABILITY_NAMED_IAM"],
+                )
+            except ClientError as e:
+                if "No updates are to be performed" in str(e):
+                    print("No updates detected. Skipping stack update.")
+                else:
+                    raise
+        elif (
+            aws_stack_status in failed_statuses or aws_stack_status in rollback_statuses
+        ):
+            print("Handling failed aws_stack")
+            self.cloudfront_client.delete_stack(StackName=self.config["aws_stack"])
+            while self._check_aws_stack(self.config["aws_stack"]) not in special_cases:
+                time.sleep(1)
+            print("Creating aws_stack")
+            self.cloudfront_client.create_stack(
+                StackName=self.config["aws_stack"],
+                TemplateURL=f"https://{self.config["aws_bucket"]}.s3.amazonaws.com/{self.config["timestamp"]}-{self.config["aws_stack_hash"]}.json",
+                Capabilities=["CAPABILITY_NAMED_IAM"],
+            )
+        elif aws_stack_status in in_progress_statuses:
+            raise ValueError("Stack is in progress")
 
         # Close the CloudFormation client
-        cloudformation_client.close()
+        self.cloudfront_client.close()
+
+    def _check_aws_stack(self, name):
+
+        try:
+            response = self.cloudfront_client.describe_stacks(StackName=name)
+            return response.get("Stacks")[0].get("StackStatus")
+        except ClientError as e:
+            if "does not exist" in str(e):
+                return "DOES_NOT_EXIST"
+            else:
+                raise
