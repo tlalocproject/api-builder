@@ -758,7 +758,7 @@ class builder:
     def _deploy_cloudformation(self):
 
         # Create the CloudFormation client
-        self.cloudfront_client = self.aws.client(
+        self.cloudormation_client = self.aws.client(
             "cloudformation", region_name=self.config["aws_region"]
         )
 
@@ -769,7 +769,7 @@ class builder:
         # Handle the aws_stack
         if aws_stack_status == "DOES_NOT_EXIST":
             print("Creating aws_stack")
-            self.cloudfront_client.create_stack(
+            self.cloudormation_client.create_stack(
                 StackName=self.config["aws_stack"],
                 TemplateURL=f"https://{self.config["aws_bucket"]}.s3.amazonaws.com/{self.config["timestamp"]}-{self.config["aws_stack_hash"]}.json",
                 Capabilities=["CAPABILITY_NAMED_IAM"],
@@ -777,7 +777,7 @@ class builder:
         elif aws_stack_status in successful_statuses:
             try:
                 print("Updating aws_stack")
-                self.cloudfront_client.update_stack(
+                self.cloudormation_client.update_stack(
                     StackName=self.config["aws_stack"],
                     TemplateURL=f"https://{self.config["aws_bucket"]}.s3.amazonaws.com/{self.config["timestamp"]}-{self.config["aws_stack_hash"]}.json",
                     Capabilities=["CAPABILITY_NAMED_IAM"],
@@ -791,11 +791,11 @@ class builder:
             aws_stack_status in failed_statuses or aws_stack_status in rollback_statuses
         ):
             print("Handling failed aws_stack")
-            self.cloudfront_client.delete_stack(StackName=self.config["aws_stack"])
+            self.cloudormation_client.delete_stack(StackName=self.config["aws_stack"])
             while self._check_aws_stack(self.config["aws_stack"]) not in special_cases:
                 time.sleep(1)
             print("Creating aws_stack")
-            self.cloudfront_client.create_stack(
+            self.cloudormation_client.create_stack(
                 StackName=self.config["aws_stack"],
                 TemplateURL=f"https://{self.config["aws_bucket"]}.s3.amazonaws.com/{self.config["timestamp"]}-{self.config["aws_stack_hash"]}.json",
                 Capabilities=["CAPABILITY_NAMED_IAM"],
@@ -804,12 +804,12 @@ class builder:
             raise ValueError("Stack is in progress")
 
         # Close the CloudFormation client
-        self.cloudfront_client.close()
+        self.cloudormation_client.close()
 
     def _check_aws_stack(self, name):
 
         try:
-            response = self.cloudfront_client.describe_stacks(StackName=name)
+            response = self.cloudormation_client.describe_stacks(StackName=name)
             return response.get("Stacks")[0].get("StackStatus")
         except ClientError as e:
             if "does not exist" in str(e):
