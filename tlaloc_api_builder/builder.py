@@ -796,7 +796,7 @@ class builder:
             ),
         )
 
-    def deploy(self):
+    def deploy(self, wait=False):
         """
         Deploys the API
 
@@ -816,7 +816,7 @@ class builder:
 
         if self.config["provider"] == "aws":
 
-            self._aws_deploy()
+            self._aws_deploy(wait)
 
         else:
 
@@ -825,7 +825,7 @@ class builder:
         # Set the deployed flag to True
         self.deployed = True
 
-    def _aws_deploy(self):
+    def _aws_deploy(self, wait=False):
         """
         Deploy the API to AWS Cloudformation
 
@@ -845,6 +845,11 @@ class builder:
         # Deploying cloudformation
         print("Deploying cloudformation")
         commons.aws.cloudformation.deploy(self, "API")
+
+        # Wait for the deployment to finish
+        if wait:
+            print("Waiting for the deployment to finish")
+            commons.aws.cloudformation.deploy_wait(self)
 
         # Delete the pointer to the aws session - No need to close it
         del self.aws
