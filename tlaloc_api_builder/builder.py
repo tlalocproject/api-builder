@@ -162,7 +162,7 @@ class builder:
                     "Config must be a non empty string parameter aws_stack"
                 )
             self.config["aws_stack"] = config["aws_stack"]
-            self.config["aws_stack_hash"] = commons.get_hash(
+            self.config["aws_stack_file"] = commons.get_hash(
                 f"{self.config["deployer"]}/{self.config["aws_stack"]}"
             )
 
@@ -604,11 +604,8 @@ class builder:
             }
 
             # Create the template file
-            with open(
-                f"{method["path_temporal"]}/{method["json"]}",
-                "w",
-            ) as f:
-                f.write(json.dumps(method["template"], indent=4, sort_keys=True))
+            json.dump(method["template"], indent=4, sort_keys=True, fp=open(f"{method["path_temporal"]}/{method["json"]}", "w"))
+
 
     def _aws_build_apigateway(self):
         """
@@ -791,7 +788,7 @@ class builder:
             indent=4,
             sort_keys=True,
             fp=open(
-                f"{self.config["path_temporal"]}/{self.config["timestamp"]}-{self.config["aws_stack_hash"]}.json",
+                f"{self.config["path_temporal"]}/{self.config["timestamp"]}-{self.config["aws_stack_file"]}.json",
                 "w",
             ),
         )
@@ -844,7 +841,7 @@ class builder:
 
         # Deploying cloudformation
         print("Deploying cloudformation")
-        commons.aws.cloudformation.deploy(self, "API")
+        commons.aws.cloudformation.deploy(self, "API", capabilities=["CAPABILITY_IAM"])
 
         # Wait for the deployment to finish
         if wait:
@@ -888,9 +885,9 @@ class builder:
 
         # Upload the API template to S3
         s3_client.upload_file(
-            f"{self.config["path_temporal"]}/{self.config["timestamp"]}-{self.config["aws_stack_hash"]}.json",
+            f"{self.config["path_temporal"]}/{self.config["timestamp"]}-{self.config["aws_stack_file"]}.json",
             self.config["aws_bucket"],
-            f"API/{self.config["timestamp"]}-{self.config["aws_stack_hash"]}.json",
+            f"API/{self.config["timestamp"]}-{self.config["aws_stack_file"]}.json",
         )
 
         # Close the S3 client
