@@ -604,8 +604,12 @@ class builder:
             }
 
             # Create the template file
-            json.dump(method["template"], indent=4, sort_keys=True, fp=open(f"{method["path_temporal"]}/{method["json"]}", "w"))
-
+            json.dump(
+                method["template"],
+                indent=4,
+                sort_keys=True,
+                fp=open(f"{method["path_temporal"]}/{method["json"]}", "w"),
+            )
 
     def _aws_build_apigateway(self):
         """
