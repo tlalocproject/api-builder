@@ -412,7 +412,10 @@ class builder:
             ),
         )
 
+        # Copy the swagger ui files
         os.system(f"cp -r {swagger_ui_path}/* {self.config["path_documentation"]}")
+
+        # Modify the initializer file
         index_html_path = os.path.join(
             self.config["path_documentation"], "swagger-initializer.js"
         )
