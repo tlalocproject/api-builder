@@ -5,6 +5,7 @@ import time
 import boto3
 
 from tlaloc_commons import commons  # type: ignore
+from swagger_ui_bundle import swagger_ui_path
 
 
 class builder:
@@ -70,6 +71,9 @@ class builder:
             os.path.dirname(self.config["path"]),
             "." + os.path.basename(self.config["path_sources"]),
         )
+        self.config["path_documentation"] = os.path.join(
+            os.path.dirname(self.config["path"]), "docs"
+        )
 
         # Checking the config.name parameter
         if (
@@ -101,6 +105,21 @@ class builder:
                 "Config must have a non empty string parameter named provider"
             )
         self.config["provider"] = config["provider"]
+
+        # Checking the version parameter
+        if config.get("version") and not isinstance(config["version"], str):
+            raise ValueError("Config must have a non empty string for version")
+        self.config["version"] = config["version"]
+
+        # Checking the description parameter
+        if config.get("description") and not isinstance(config["description"], str):
+            raise ValueError("Config must have a non empty string for description")
+        self.config["description"] = config["description"]
+
+        # Checking the title parameter
+        if config.get("title") and not isinstance(config["title"], str):
+            raise ValueError("Config must have a non empty string for title")
+        self.config["title"] = config["title"]
 
         # Storing timestamp
         self.config["timestamp"] = int(time.time())
@@ -170,12 +189,12 @@ class builder:
 
             raise ValueError("Invalid provider")
 
-    def build(self):
+    def build(self, swagger=False):
         """
         Build the API files
 
         Parameters:
-            None
+            swagger (bool): If True, the swagger file will be generated
 
         Returns:
             None
@@ -209,6 +228,15 @@ class builder:
                 json.dumps(self.building["structure"], indent=4).replace("\n", "\n    ")
             )
         )
+
+        # Generating swagger documentation
+        if swagger:
+            self._build_swagger()
+            print(
+                "Swagger Documentation:\n    {}".format(
+                    json.dumps(self.swagger, indent=4).replace("\n", "\n    ")
+                )
+            )
 
         # Initialize methods dictionary
         self._get_methods()
@@ -322,6 +350,80 @@ class builder:
 
         # Store the structure in the building dictionary
         self.building["structure"] = filetree_copy
+
+    def _build_swagger(self):
+
+        def _add_methods(structure, path):
+            methods = {}
+            for token in structure:
+                if token in commons.http_methods:
+                    with open(
+                        os.path.join(
+                            self.config["path_sources"],
+                            os.path.join(path, token),
+                            "index.mjs",
+                        )
+                    ) as f:
+                        content = f.read()
+                        start = content.find("/** swagger")
+                        start = content.find("\n", start)
+                        end = content.find("\n*/", start) + 1
+                        swagger_comment = content[start:end]
+                        if f"/{path}" not in methods:
+                            methods[f"/{path}"] = {}
+                        methods[f"/{path}"][token.lower()] = json.loads(
+                            f"{{{swagger_comment}}}"
+                        )
+                else:
+                    methods = methods | _add_methods(
+                        structure[token], os.path.join(path, token)
+                    )
+            return methods
+
+        # Initialize the swagger dictionary
+        self.swagger = {
+            "openapi": "3.0.0",
+            "info": {
+                "title": self.config["name"],
+            },
+            "schemes": ["https", "http"],
+            "paths": _add_methods(self.building["structure"], ""),
+        }
+        if "title" in self.config:
+            self.swagger["info"]["title"] = self.config["title"]
+        if "version" in self.config:
+            self.swagger["info"]["version"] = self.config["version"]
+        if "description" in self.config:
+            self.swagger["info"]["description"] = self.config["description"]
+
+        # Clear the docs directory
+        if os.path.exists(self.config["path_documentation"]):
+            os.system(f"rm -rf {self.config['path_documentation']}/*")
+        else:
+            os.makedirs(self.config["path_documentation"])
+
+        # Write the swagger file
+        json.dump(
+            self.swagger,
+            indent=4,
+            sort_keys=True,
+            fp=open(
+                os.path.join(self.config["path_documentation"], "swagger.json"), "w"
+            ),
+        )
+
+        os.system(f"cp -r {swagger_ui_path}/* {self.config["path_documentation"]}")
+        index_html_path = os.path.join(
+            self.config["path_documentation"], "swagger-initializer.js"
+        )
+        with open(index_html_path, "r") as f:
+            index_html = f.read()
+        index_html = index_html.replace(
+            'url: "https://petstore.swagger.io/v2/swagger.json"',
+            'url: "./swagger.json"',
+        )
+        with open(index_html_path, "w") as f:
+            f.write(index_html)
 
     def _get_methods(self):
         """
