@@ -120,7 +120,7 @@ class builder:
         if config.get("title") and not isinstance(config["title"], str):
             raise ValueError("Config must have a non empty string for title")
         self.config["title"] = config["title"]
-
+        
         # Storing timestamp
         self.config["timestamp"] = int(time.time())
 
