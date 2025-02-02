@@ -5,8 +5,6 @@ import time
 import boto3
 
 from tlaloc_commons import commons  # type: ignore
-from swagger_ui_bundle import swagger_ui_path
-
 
 class builder:
     """
@@ -364,6 +362,8 @@ class builder:
 
     def _build_swagger(self):
 
+        from swagger_ui_bundle import swagger_ui_path
+        
         def _add_methods(structure, path):
             methods = {}
             for token in structure:
