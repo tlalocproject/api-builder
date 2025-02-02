@@ -106,6 +106,17 @@ class builder:
             )
         self.config["provider"] = config["provider"]
 
+        # Checking the aws_folder
+        if (
+            not config.get("aws_folder")
+            or not isinstance(config["aws_folder"], str)
+            or not config["aws_folder"].strip()
+        ):
+            raise ValueError(
+                "Config must have a non empty string parameter named aws_folder"
+            )
+        self.config["aws_folder"] = config["aws_folder"]
+
         # Checking the version parameter
         if config.get("version") and not isinstance(config["version"], str):
             raise ValueError("Config must have a non empty string for version")
