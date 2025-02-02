@@ -908,11 +908,87 @@ class builder:
             indent=4,
             sort_keys=True,
             fp=open(
-                f"{self.config["path_temporal"]}/{self.config["timestamp"]}-{self.config["aws_stack_file"]}.json",
+                f"{self.config["path_temporal"]}/{self.config["aws_region"]}.json",
                 "w",
             ),
         )
+        self.config["aws_template_file"] = f"{self.config["timestamp"]}-{self.config["aws_stack_file"]}.json"
 
+    def upload(self):
+        """
+        Upload the API
+
+        Parameters:
+            None
+
+        Returns:
+            None
+
+        Raises:
+            ValueError: If the provider is not supported
+        """
+
+        if not self.built:
+
+            raise ValueError("API must be built before deploying")
+
+        if self.config["provider"] == "aws":
+
+            self._aws_upload()
+
+        else:
+
+            raise ValueError("Invalid provider")
+        
+    def _aws_upload(self):
+        """
+        Upload the files to S3
+
+        Parameters:
+            None
+
+        Returns:
+            None
+        """
+
+        # Create the aws session
+        self.aws = boto3.Session(profile_name=self.config["aws_profile"])
+
+        # Create the S3 client
+        s3_client = self.aws.client("s3", region_name=self.config["aws_region"])
+
+        # For each method, upload the zip file to S3
+        for method in self.building["methods"]:
+            s3_client.upload_file(
+                os.path.join(
+                    self.building["methods"][method]["path_temporal"],
+                    self.building["methods"][method]["zip"],
+                ),
+                self.config["aws_bucket"],
+                f"API/{self.building["methods"][method]["zip"]}",
+            )
+            s3_client.upload_file(
+                os.path.join(
+                    self.building["methods"][method]["path_temporal"],
+                    self.building["methods"][method]["json"],
+                ),
+                self.config["aws_bucket"],
+                f"API/{self.building["methods"][method]["json"]}",
+            )
+
+        # Upload the API template to S3
+        s3_client.upload_file(
+            f"{self.config["path_temporal"]}/{self.config["aws_region"]}.json",
+            self.config["aws_bucket"],
+            f"API/{self.config["timestamp"]}-{self.config["aws_stack_file"]}.json",
+        )
+
+        # Close the S3 client
+        s3_client.close()
+
+        # Delete the pointer to the aws session - No need to close it
+        del self.aws
+        
     def deploy(self, wait=False):
         """
         Deploys the API
@@ -955,13 +1031,9 @@ class builder:
         # Create the aws session
         self.aws = boto3.Session(profile_name=self.config["aws_profile"])
 
-        # Uploading the files to S3
-        print("Uploading the files to S3")
-        self._aws_upload()
-
         # Deploying cloudformation
         print("Deploying cloudformation")
-        commons.aws.cloudformation.deploy(self, "API", capabilities=["CAPABILITY_IAM"])
+        commons.aws.cloudformation.deploy(self, capabilities=["CAPABILITY_IAM"])
 
         # Wait for the deployment to finish
         if wait:
@@ -971,44 +1043,3 @@ class builder:
         # Delete the pointer to the aws session - No need to close it
         del self.aws
 
-    def _aws_upload(self):
-        """
-        Upload the files to S3
-
-        Parameters:
-            None
-
-        Returns:
-            None
-        """
-        # Create the S3 client
-        s3_client = self.aws.client("s3", region_name=self.config["aws_region"])
-
-        # For each method, upload the zip file to S3
-        for method in self.building["methods"]:
-            s3_client.upload_file(
-                os.path.join(
-                    self.building["methods"][method]["path_temporal"],
-                    self.building["methods"][method]["zip"],
-                ),
-                self.config["aws_bucket"],
-                f"API/{self.building["methods"][method]["zip"]}",
-            )
-            s3_client.upload_file(
-                os.path.join(
-                    self.building["methods"][method]["path_temporal"],
-                    self.building["methods"][method]["json"],
-                ),
-                self.config["aws_bucket"],
-                f"API/{self.building["methods"][method]["json"]}",
-            )
-
-        # Upload the API template to S3
-        s3_client.upload_file(
-            f"{self.config["path_temporal"]}/{self.config["timestamp"]}-{self.config["aws_stack_file"]}.json",
-            self.config["aws_bucket"],
-            f"API/{self.config["timestamp"]}-{self.config["aws_stack_file"]}.json",
-        )
-
-        # Close the S3 client
-        s3_client.close()
