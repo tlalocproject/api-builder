@@ -600,7 +600,7 @@ class builder:
         # Zip the files for each method
         for method in self.building["methods"]:
             os.system(
-                f"cd {self.building['methods'][method]["path_temporal"]} && zip -r {self.building['methods'][method]['zip']} * >/dev/null 2>&1"
+                f"cd {self.building['methods'][method]["path_temporal"]} && zip -r ../{self.building['methods'][method]['zip']} * >/dev/null 2>&1"
             )
 
     def _aws_build_methods(self):
@@ -908,7 +908,7 @@ class builder:
             indent=4,
             sort_keys=True,
             fp=open(
-                f"{self.config["path_temporal"]}/{self.config["aws_region"]}.json",
+                f"{self.config["path_temporal"]}/{self.config["timestamp"]}-{self.config["aws_stack_file"]}-{self.config["aws_region"]}.json",
                 "w",
             ),
         )
