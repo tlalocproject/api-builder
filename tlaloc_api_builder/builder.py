@@ -464,6 +464,7 @@ class builder:
                     last_change = int(os.path.getmtime(path_sources))
                     self.building["methods"][method_hash] = {
                         "hash": method_hash,
+                        "function_name": f"{self.config["deployer"]}-{self.config["name"]}-{method_hash}",
                         "method": token,
                         "zip": f"{last_change}-{method_hash}.zip",
                         "json": f"{last_change}-{method_hash}.json",
@@ -693,7 +694,7 @@ class builder:
                     f"{method["hash"]}Function": {
                         "Type": "AWS::Lambda::Function",
                         "Properties": {
-                            "FunctionName": method["hash"],
+                            "FunctionName": method["function_name"],
                             "Handler": "index.handler",
                             "Role": {"Fn::GetAtt": f"{method["hash"]}Role.Arn"},
                             "Runtime": "nodejs20.x",
