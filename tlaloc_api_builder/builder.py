@@ -605,6 +605,18 @@ class builder:
                 f"cd {self.building['methods'][method]["path_temporal"]} && zip -r {self.building['methods'][method]['zip']} * >/dev/null 2>&1"
             )
 
+    def _aws_extract_policies(self, filename):
+
+        with open(filename, "r") as f:
+            content = f.read()
+            start = content.find("/** policies")
+            if start == -1:
+                return []
+            start = content.find("\n", start)
+            end = content.find("\n*/", start) + 1
+            statements_comment = content[start:end]
+            return json.loads(statements_comment)
+
     def _aws_build_methods(self):
         """
         Make the methods template for AWS Cloudformation
@@ -622,6 +634,12 @@ class builder:
             # Creating method short reference
             method = self.building["methods"][method]
 
+            # Extract the statements
+            policies = self._aws_extract_policies(
+                os.path.join(method["path_sources"], "index.mjs")
+            )
+
+            # Create template object
             method["template"] = {
                 "AWSTemplateFormatVersion": "2010-09-09",
                 "Parameters": {
@@ -683,7 +701,8 @@ class builder:
                                                 ],
                                                 "Resource": "*",
                                             },
-                                        ],
+                                        ]
+                                        + policies,
                                     },
                                 }
                             ],
