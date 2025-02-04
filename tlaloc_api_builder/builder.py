@@ -982,7 +982,7 @@ class builder:
 
         # Upload the API template to S3
         s3_client.upload_file(
-            f"{self.config["path_temporal"]}/{self.config["aws_region"]}.json",
+            f"{self.config["path_temporal"]}/{self.config["timestamp"]}-{self.config["aws_stack_file"]}-{self.config["aws_region"]}.json",
             self.config["aws_bucket"],
             f"API/{self.config["timestamp"]}-{self.config["aws_stack_file"]}.json",
         )
