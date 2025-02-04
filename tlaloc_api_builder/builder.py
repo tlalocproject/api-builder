@@ -4,7 +4,8 @@ import copy
 import time
 import boto3
 
-from tlaloc_commons import commons  # type: ignore
+from tlaloc_commons import commons
+
 
 class builder:
     """
@@ -129,7 +130,7 @@ class builder:
         if config.get("title") and not isinstance(config["title"], str):
             raise ValueError("Config must have a non empty string for title")
         self.config["title"] = config["title"]
-        
+
         # Storing timestamp
         self.config["timestamp"] = int(time.time())
 
@@ -363,7 +364,7 @@ class builder:
     def _build_swagger(self):
 
         from swagger_ui_bundle import swagger_ui_path
-        
+
         def _add_methods(structure, path):
             methods = {}
             for token in structure:
@@ -913,7 +914,9 @@ class builder:
                 "w",
             ),
         )
-        self.config["aws_template_file"] = f"{self.config["timestamp"]}-{self.config["aws_stack_file"]}.json"
+        self.config["aws_template_file"] = (
+            f"{self.config["timestamp"]}-{self.config["aws_stack_file"]}.json"
+        )
 
     def upload(self):
         """
@@ -940,7 +943,7 @@ class builder:
         else:
 
             raise ValueError("Invalid provider")
-        
+
     def _aws_upload(self):
         """
         Upload the files to S3
@@ -989,7 +992,7 @@ class builder:
 
         # Delete the pointer to the aws session - No need to close it
         del self.aws
-        
+
     def deploy(self, wait=False):
         """
         Deploys the API
@@ -1043,4 +1046,3 @@ class builder:
 
         # Delete the pointer to the aws session - No need to close it
         del self.aws
-
