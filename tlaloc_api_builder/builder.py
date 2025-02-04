@@ -770,7 +770,7 @@ class builder:
                 "apiGateway": {
                     "Type": "AWS::ApiGateway::RestApi",
                     "Properties": {
-                        "Name": self.config["name"],
+                        "Name": f"{self.config["deployer"]}-{self.config["name"]}",
                         "Parameters": {"EndpointConfiguration": "REGIONAL"},
                     },
                 },
