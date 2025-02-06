@@ -2,6 +2,7 @@ import os
 import json
 import copy
 import time
+import yaml
 import boto3
 
 from tlaloc_commons import commons
@@ -383,9 +384,19 @@ class builder:
                         swagger_comment = content[start:end]
                         if f"/{path}" not in methods:
                             methods[f"/{path}"] = {}
-                        methods[f"/{path}"][token.lower()] = json.loads(
-                            f"{{{swagger_comment}}}"
-                        )
+                        try:
+                            methods[f"/{path}"][token.lower()] = json.loads(
+                                swagger_comment
+                            )
+                        except:
+                            try:
+                                methods[f"/{path}"][token.lower()] = yaml.safe_load(
+                                    swagger_comment
+                                )
+                            except:
+                                raise ValueError(
+                                    "Invalid Swagger: json and yaml interpretation failed"
+                                )
                 else:
                     methods = methods | _add_methods(
                         structure[token], os.path.join(path, token)
