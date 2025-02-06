@@ -2,7 +2,6 @@ import os
 import json
 import copy
 import time
-import yaml
 import boto3
 
 from tlaloc_commons import commons
@@ -390,6 +389,7 @@ class builder:
                             )
                         except:
                             try:
+                                import yaml
                                 methods[f"/{path}"][token.lower()] = yaml.safe_load(
                                     swagger_comment
                                 )
