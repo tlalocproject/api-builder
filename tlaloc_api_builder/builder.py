@@ -891,7 +891,7 @@ class builder:
                                 "StatusCode": 200,
                                 "ResponseParameters": {
                                     "method.response.header.Access-Control-Allow-Headers": "'*'",
-                                    "method.response.header.Access-Control-Allow-Methods": "'GET,OPTIONS'",
+                                    "method.response.header.Access-Control-Allow-Methods": "'*'",
                                     "method.response.header.Access-Control-Allow-Origin": "'*'",
                                 },
                             }
