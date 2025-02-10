@@ -471,7 +471,7 @@ class builder:
                 path_sources = os.path.join(path, token)
                 if token in commons.http_methods:
                     method_hash = commons.get_hash(
-                        f"{self.config["deployer"]}-{path}/{token}"
+                        f"{self.config["deployer"]}-{self.config["aws_stack"]}-{path}/{token}"
                     )
                     last_change = int(os.path.getmtime(path_sources))
                     self.building["methods"][method_hash] = {
