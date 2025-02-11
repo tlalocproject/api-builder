@@ -636,7 +636,7 @@ class builder:
             content = f.read()
             start = content.find("/** layers")
             if start == -1:
-                return []
+                return [], []
             start = content.find("\n", start)
             end = content.find("\n*/", start) + 1
             statements_comment = content[start:end]
