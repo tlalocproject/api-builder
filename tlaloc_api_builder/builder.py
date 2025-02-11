@@ -629,6 +629,39 @@ class builder:
             statements_comment = content[start:end]
             return json.loads(statements_comment)
 
+    def _aws_extract_layers(self, filename):
+
+        layer_list = []
+        with open(filename, "r") as f:
+            content = f.read()
+            start = content.find("/** layers")
+            if start == -1:
+                return []
+            start = content.find("\n", start)
+            end = content.find("\n*/", start) + 1
+            statements_comment = content[start:end]
+            layer_list = json.loads(statements_comment)
+
+        if len(layer_list) == 0:
+            return [], []
+
+        layers = []
+        policy = {"Effect": "Allow", "Action": "lambda:GetLayerVersion", "Resource": []}
+        for layer in layer_list:
+            layer = layer.split("_")
+            layer = "".join(
+                [layer[0]] + [token.capitalize() for token in layer[1:]] + ["Layer"]
+            )
+            layer = {
+                "Fn::ImportValue": {
+                    "Fn::Sub": f"{self.config["deployer"]}-weelock-layers-${{AWS::Region}}-{layer}"
+                }
+            }
+            policy["Resource"].append(layer)
+            layers.append(layer)
+
+        return layers, [policy]
+
     def _aws_build_methods(self):
         """
         Make the methods template for AWS Cloudformation
@@ -648,6 +681,11 @@ class builder:
 
             # Extract the statements
             policies = self._aws_extract_policies(
+                os.path.join(method["path_sources"], "index.mjs")
+            )
+
+            # Extract layers
+            layers, layers_policy = self._aws_extract_layers(
                 os.path.join(method["path_sources"], "index.mjs")
             )
 
@@ -714,7 +752,8 @@ class builder:
                                                 "Resource": "*",
                                             },
                                         ]
-                                        + policies,
+                                        + policies
+                                        + layers_policy,
                                     },
                                 }
                             ],
@@ -733,6 +772,7 @@ class builder:
                             "Timeout": 10,
                             "MemorySize": 256,
                             "TracingConfig": {"Mode": "Active"},
+                            "Layers": layers,
                             "Code": {
                                 "S3Bucket": self.config["aws_bucket"],
                                 "S3Key": f"API/{method["zip"]}",
