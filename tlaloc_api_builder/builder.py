@@ -390,6 +390,7 @@ class builder:
                         except:
                             try:
                                 import yaml
+
                                 methods[f"/{path}"][token.lower()] = yaml.safe_load(
                                     swagger_comment
                                 )
