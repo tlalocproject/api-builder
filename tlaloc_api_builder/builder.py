@@ -745,19 +745,6 @@ class builder:
                                                 ],
                                                 "Resource": "*",
                                             },
-                                            {
-                                                "Effect": "Allow",
-                                                "Action": [
-                                                    "ssm:GetParameter",
-                                                    "ssm:GetParameters",
-                                                    "ssm:GetParametersByPath",
-                                                ],
-                                                "Resource": [
-                                                    {
-                                                        "Fn::Sub": f"arn:aws:ssm:${{AWS::Region}}:${{AWS::AccountId}}:parameter/{self.config["deployer"]}/*"
-                                                    }
-                                                ],
-                                            },
                                         ]
                                         + policies
                                         + layers_policy,
