@@ -648,14 +648,8 @@ class builder:
         layers = []
         policy = {"Effect": "Allow", "Action": "lambda:GetLayerVersion", "Resource": []}
         for layer in layer_list:
-            layer = layer.split("_")
-            layer = "".join(
-                [layer[0]] + [token.capitalize() for token in layer[1:]] + ["Layer"]
-            )
             layer = {
-                "Fn::ImportValue": {
-                    "Fn::Sub": f"{self.config["deployer"]}-weelock-layers-${{AWS::Region}}-{layer}"
-                }
+                "Fn::Sub": f"{{{{resolve:ssm:/{self.config["deployer"]}/layers/{layer}}}}}"
             }
             policy["Resource"].append(layer)
             layers.append(layer)
@@ -750,6 +744,19 @@ class builder:
                                                     "xray:PutTelemetryRecords",
                                                 ],
                                                 "Resource": "*",
+                                            },
+                                            {
+                                                "Effect": "Allow",
+                                                "Action": [
+                                                    "ssm:GetParameter",
+                                                    "ssm:GetParameters",
+                                                    "ssm:GetParametersByPath",
+                                                ],
+                                                "Resource": [
+                                                    {
+                                                        "Fn::Sub": f"arn:aws:ssm:${{AWS::Region}}:${{AWS::AccountId}}:parameter/{self.config["deployer"]}/*"
+                                                    }
+                                                ],
                                             },
                                         ]
                                         + policies
