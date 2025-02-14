@@ -913,36 +913,35 @@ class builder:
             template["Resources"][f"{resource_hash}ResourceOPTIONS"] = {
                 "Type": "AWS::ApiGateway::Method",
                 "Properties": {
-                    "AuthorizationType": "NONE",
                     "RestApiId": {"Ref": "apiGateway"},
                     "ResourceId": resource_id,
                     "HttpMethod": "OPTIONS",
-                    "Integration": {
-                        "Type": "MOCK",
-                        "PassthroughBehavior": "WHEN_NO_MATCH",
-                        "RequestTemplates": {"application/json": '{"statusCode": 200}'},
-                        "IntegrationResponses": [
-                            {
-                                "StatusCode": 200,
-                                "ResponseParameters": {
-                                    "method.response.header.Access-Control-Allow-Headers": "'*'",
-                                    "method.response.header.Access-Control-Allow-Methods": "'*'",
-                                    "method.response.header.Access-Control-Allow-Origin": "'*'",
-                                },
-                            }
-                        ],
-                    },
+                    "AuthorizationType": "NONE",
                     "MethodResponses": [
                         {
                             "StatusCode": 200,
-                            "ResponseModels": {"application/json": "Empty"},
                             "ResponseParameters": {
-                                "method.response.header.Access-Control-Allow-Headers": False,
-                                "method.response.header.Access-Control-Allow-Methods": False,
                                 "method.response.header.Access-Control-Allow-Origin": False,
+                                "method.response.header.Access-Control-Allow-Methods": False,
+                                "method.response.header.Access-Control-Allow-Headers": False,
                             },
                         }
                     ],
+                    "Integration": {
+                        "Type": "MOCK",
+                        "RequestTemplates": {"application/json": '{"statusCode": 200}'},
+                        "IntegrationResponses": [
+                            {
+                                "StatusCode": "200",
+                                "ResponseParameters": {
+                                    "method.response.header.Access-Control-Allow-Origin": "'*'",
+                                    "method.response.header.Access-Control-Allow-Methods": "'*'",
+                                    "method.response.header.Access-Control-Allow-Headers": "'*'",
+                                },
+                                "ResponseTemplates": {"application/json": "{}"},
+                            }
+                        ],
+                    },
                 },
             }
 
